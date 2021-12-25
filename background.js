@@ -14,7 +14,7 @@ chrome.webNavigation.onCompleted.addListener(function(details) {
 
 // saving the submit id in local storage
 chrome.webRequest.onBeforeSendHeaders.addListener(
-  (details) => {
+  async (details) => {
     let url = new URL(details.url);
     let submitId = url.searchParams.get("solution_id");
     chrome.storage.local.set({"submitId" : submitId}, () => {
@@ -29,7 +29,13 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
         });
       }
     }
-    return {cancel: false};
+    let csrf_token = null;
+    chrome.storage.local.get(['submitId', 'csrf_token'], function(item) {
+      submitId = item.submitId;
+      csrf_token = item.csrf_token;
+    });
+    await checkResult(submitId, csrf_token);
+    return {cancel: true};
   },
   {urls: ["https://www.codechef.com/api/ide/submit?solution_id=*"]},
   ["blocking", "requestHeaders"]
@@ -69,20 +75,30 @@ chrome.
 
 
 // ping at intervals the cc server for the status of the problem
-function checkResult() {
-  $.ajax({
-    url: /*requested url*/"",
-    dataType: "json",
-    headers: /*required headers as json object */ "",
-    success: /*
-              * function to handle success of XHR request
-              * check if the response shows verdict available
-              * if verdict available then notify user else
-              * user setTimeout function to do recursive call
-              * to this function after some seconds.
-              */ "" ,
-    error: /* function to handle errors*/ ""
-  });
+async function checkResult(submitId, csrf_token) {
+  let url = "https://www.codechef.com/api/ide/submit?solution_id=" + submitId;
+  async function retry(fn, retries) {
+    if(retries == 0) return -1;
+    setTimeout(2000);
+    if(await fn() === 0)
+      return 0
+    retry(fn, retries-1);
+  }
+  async function doCalls() {
+    const response = await fetch(url, {
+      method: 'GET', // *GET, POST, PUT, DELETE, etc.
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrf_token,
+        'X-Requested-With': XMLHttpRequest
+      },
+    });
+    if(response.json().verdict !== "wait")
+      return 0;
+    return -1;
+  }
+  const res = await retry(doCalls, 10);
+  console.log("GOT RES: " + res);
 }
 
 
