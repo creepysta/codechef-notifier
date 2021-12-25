@@ -4,8 +4,12 @@
   "version": "1.0",
   "manifest_version": 2,
   "permissions": [
+    "webNavigation",
     "webRequest",
-    "webRequestBlocking"
+    "storage",
+    "webRequestBlocking",
+    "https://www.codechef.com/submit/*",
+    "https://www.codechef.com/api/ide/submit"
   ],
   "background": {
     "scripts": [
